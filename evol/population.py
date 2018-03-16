@@ -5,14 +5,14 @@ evolutionary steps by directly calling methods on the population
 or by appyling an `evol.Evolution` object. 
 """
 from itertools import cycle, islice
-from typing import Any, Callable, Generator, Iterable, Optional, Sequence
+from typing import Tuple, Any, Callable, Generator, Iterable, Optional, Sequence
 from uuid import uuid4
 
 from copy import copy
 from random import choices, randint
 
 from evol import Individual
-from evol.helpers.utils import select_arguments, offspring_generator
+from evol.helpers.utils import fitness_weights, select_arguments, offspring_generator, surviving_population
 from evol.logger import BaseLogger
 from evol.serialization import SimpleSerializer
 
@@ -53,6 +53,7 @@ class Population:
         self.maximize = maximize
         self.logger = logger or BaseLogger()
         self.serializer = serializer or SimpleSerializer(target=checkpoint_target)
+        self.n_islands = 1
 
     def __copy__(self):
         result = self.__class__(chromosomes=self.chromosomes,
@@ -94,6 +95,18 @@ class Population:
         for individual in self.individuals:
             yield individual.chromosome
 
+    @property
+    def islands(self) -> Generator[Tuple[Individual, ...], None, None]:
+        if self.n_islands == 1:
+            yield self.individuals
+        else:
+            for island in range(self.n_islands):
+                yield tuple(individual for individual in self.individuals if individual.island_id == island)
+
+    @property
+    def intended_island_size(self) -> int:
+        return round(self.intended_size / self.n_islands)
+
     @classmethod
     def generate(cls,
                  init_function: Callable[[], Any],
@@ -124,6 +137,7 @@ class Population:
         """
         result = cls(chromosomes=[], eval_function=eval_function, **kwargs)
         result.individuals = result.serializer.load(target=target)
+        result.n_islands = max(individual.island_id for individual in result.individuals)+1
         return result
 
     def checkpoint(self, target: Optional[str]=None, method: str='pickle') -> 'Population':
@@ -137,20 +151,6 @@ class Population:
         """
         self.serializer.checkpoint(individuals=self.individuals, target=target, method=method)
         return self
-
-    @property
-    def _individual_weights(self):
-        try:
-            min_fitness = min(individual.fitness for individual in self)
-            max_fitness = max(individual.fitness for individual in self)
-        except TypeError:
-            raise RuntimeError('Individual weights can not be computed if the individuals are not evaluated.')
-        if min_fitness == max_fitness:
-            return [1] * len(self)
-        elif self.maximize:
-            return [(individual.fitness - min_fitness)/(max_fitness-min_fitness) for individual in self]
-        else:
-            return [1-(individual.fitness - min_fitness) / (max_fitness - min_fitness) for individual in self]
 
     def evolve(self, evolution: 'Evolution', n: int=1) -> 'Population':
         """Evolve the population according to an Evolution.
@@ -229,24 +229,18 @@ class Population:
             with chances proportional to their fitness. Defaults to False.
         :return: self
         """
-        if fraction is None:
-            if n is None:
-                raise ValueError('everyone survives! must provide either "fraction" and/or "n".')
-            resulting_size = n
-        elif n is None:
-            resulting_size = round(fraction*len(self.individuals))
-        else:
-            resulting_size = min(round(fraction*len(self.individuals)), n)
         self.evaluate(lazy=True)
-        if resulting_size == 0:
-            raise RuntimeError('no one survived!')
-        if resulting_size > len(self.individuals):
-            raise ValueError('everyone survives! must provide "fraction" and/or "n" < population size')
-        if luck:
-            self.individuals = choices(self.individuals, k=resulting_size, weights=self._individual_weights)
-        else:
-            sorted_individuals = sorted(self.individuals, key=lambda x: x.fitness, reverse=self.maximize)
-            self.individuals = sorted_individuals[:resulting_size]
+        target_island_size = surviving_population(current_population_size=len(self.individuals),
+                                                  fraction=fraction, n=n, n_islands=self.n_islands)
+        individuals = []
+        for island in self.islands:
+            if luck:
+                individuals += choices(island, k=target_island_size,
+                                       weights=fitness_weights(island, maximize=self.maximize))
+            else:
+                sorted_individuals = sorted(island, key=lambda x: x.fitness, reverse=self.maximize)
+                individuals += sorted_individuals[:target_island_size]
+        self.individuals = individuals
         return self
 
     def breed(self,
@@ -271,12 +265,17 @@ class Population:
         combiner = select_arguments(combiner)
         if population_size:
             self.intended_size = population_size
-        offspring = offspring_generator(parents=self.individuals,
-                                        parent_picker=select_arguments(parent_picker),
-                                        combiner=select_arguments(combiner),
-                                        **kwargs)
-        self.individuals += list(islice(offspring, self.intended_size - len(self.individuals)))
-        # TODO: increase generation and individual's ages
+        for individual in self.individuals:
+            individual.age += 1
+        children = []
+        for island in self.islands:
+            offspring = offspring_generator(parents=island,
+                                            parent_picker=select_arguments(parent_picker),
+                                            combiner=select_arguments(combiner),
+                                            **kwargs)
+            children += list(islice(offspring, self.intended_island_size - len(island)))
+        self.individuals += children
+        self.generation += 1
         return self
 
     def mutate(self,
@@ -307,6 +306,18 @@ class Population:
         self.evaluate(lazy=True)
         self.logger.log(population=self, **kwargs)
         return self
+
+    def split(self, n_islands):
+        self.n_islands = n_islands
+        for individual, island in zip(self.individuals, cycle(range(n_islands))):
+            individual.island_id = island
+        return self
+
+    def combine(self):
+        self.n_islands = 1
+        for individual in self.individuals:
+            individual.island_id = 0
+        return self
       
     def _update_documented_best(self):
         """Update the documented best"""
@@ -335,7 +346,8 @@ class ContestPopulation(Population):
     when the population is modified (e.g. by calling survive, mutate etc).
 
     :param chromosomes: Iterable of initial chromosomes of the Population.
-    :param eval_function: Function that reduces a chromosome to a fitness.
+    :param eval_function: Function that reduces multiple chromosomes to
+        a tuple of scores - one for each chromosome.
     :param maximize: If True, fitness will be maximized, otherwise minimized.
         Defaults to True.
     :param contests_per_round: Number of contests each individual takes part
@@ -402,21 +414,18 @@ class ContestPopulation(Population):
         number of individuals to have in a contest during the evaluation.
         :return: self
         """
-        if contests_per_round is None:
-            contests_per_round = self.contests_per_round
-        if individuals_per_contest is None:
-            individuals_per_contest = self.individuals_per_contest
         if lazy and all(individual.fitness is not None for individual in self):
             return self
-        for individual in self.individuals:
-            individual.fitness = 0
-        for _ in range(contests_per_round):
-            offsets = [0] + [randint(0, len(self.individuals) - 1) for _ in range(individuals_per_contest - 1)]
-            generators = [islice(cycle(self.individuals), offset, None) for offset in offsets]
-            for competitors in islice(zip(*generators), len(self.individuals)):
-                scores = self.eval_function(*competitors)
-                for competitor, score in zip(competitors, scores):
-                    competitor.fitness += score
+        self.reset_fitness(0.)
+        for island in self.islands:
+            for _ in range(contests_per_round or self.contests_per_round):
+                offsets = [0] + [randint(0, len(island) - 1)
+                                 for _ in range(individuals_per_contest or self.individuals_per_contest - 1)]
+                generators = [islice(cycle(island), offset, None) for offset in offsets]
+                for competitors in islice(zip(*generators), len(island)):
+                    scores = self.eval_function(*[competitor.chromosome for competitor in competitors])
+                    for competitor, score in zip(competitors, scores):
+                        competitor.fitness += score
         return self
 
     def map(self, func: Callable[..., Individual], **kwargs) -> 'Population':
@@ -470,7 +479,7 @@ class ContestPopulation(Population):
         self.reset_fitness()
         return self  # If we return the result of Population.survive PyCharm complains that it is of type 'Population'
 
-    def reset_fitness(self):
+    def reset_fitness(self, fitness_value: Optional[float]=None):
         """Reset the fitness of all individuals."""
         for individual in self:
-            individual.fitness = None
+            individual.fitness = fitness_value

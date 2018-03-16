@@ -1,6 +1,5 @@
-from random import random, choices, seed
-
 from pytest import raises
+from random import random, choices, seed
 
 from evol import Population, ContestPopulation
 from evol.helpers.pickers import pick_random
@@ -168,23 +167,6 @@ class TestPopulationMutate:
             assert chromosome == 17
 
 
-class TestPopulationWeights:
-
-    def test_weights(self, simple_chromosomes, simple_evaluation_function):
-        for maximize in (False, True):
-            pop = Population(chromosomes=simple_chromosomes,
-                             eval_function=simple_evaluation_function, maximize=maximize)
-            with raises(RuntimeError):
-                _ = pop._individual_weights
-            pop.evaluate()
-            assert max(pop._individual_weights) == 1
-            assert min(pop._individual_weights) == 0
-            if maximize:
-                assert pop._individual_weights[0] == 0
-            else:
-                assert pop._individual_weights[0] == 1
-
-
 class TestPopulationBest:
 
     def test_current_best(self, simple_chromosomes):
@@ -218,6 +200,43 @@ class TestPopulationBest:
         assert pop.documented_best.fitness - 20 == pop.current_best.fitness
 
 
+class TestPopulationIslands:
+
+    def test_islands(self, simple_population):
+        pop = simple_population.split(4)
+        for island in pop.islands:
+            assert len(island) == 25
+        for individual in pop:
+            assert individual.island_id < 4
+
+    def test_intended_island_size(self, simple_population):
+        pop = simple_population.split(3)
+        assert len(pop) == 100
+        assert pop.intended_island_size == 33
+
+    def test_survive(self, simple_population):
+        pop = simple_population.split(4).survive(n=20)
+        assert len(pop) == 20
+        assert all(len(island) == 5 for island in pop.islands)
+
+    def test_survive_fraction(self, simple_population):
+        pop = simple_population.split(4).survive(fraction=0.5)
+        assert len(pop) == 48
+        assert all(len(island) == 12 for island in pop.islands)
+
+    def test_breed(self, simple_population):
+        pop = simple_population.split(4)
+        pop.intended_size = 200
+
+        def pick_and_check(population):
+            assert len(set(i.island_id for i in population)) == 1
+            return choices(population, k=2)
+
+        pop.breed(parent_picker=pick_and_check, combiner=lambda x, y: x+y)
+        assert len(pop) == 200
+        assert all(len(island) == 50 for island in pop.islands)
+
+
 class TestContestPopulation:
 
     def test_init(self):
@@ -232,3 +251,18 @@ class TestContestPopulationBest:
         pop = ContestPopulation([0, 1, 2], lambda x, y: [0, 0], contests_per_round=100, individuals_per_contest=2)
         pop.evaluate()
         assert pop.documented_best is None
+
+
+class TestContestPopulationIslands:
+
+    def test_islands(self):
+
+        def check_and_evaluate(x, y):
+            assert x == y
+            return 0, 0
+
+        pop = ContestPopulation([0, 1, 2, 3], check_and_evaluate, contests_per_round=1, individuals_per_contest=2)
+        with raises(AssertionError):
+            pop.evaluate()
+        pop.split(4)
+        pop.evaluate()

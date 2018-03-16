@@ -87,6 +87,12 @@ class TestPickleCheckpoint:
         _ = simple_population.evolve(evolution=evo, n=11)
         assert len(listdir(directory)) == 2
 
+    def test_islands(self, tmpdir, simple_population, simple_evaluation_function):
+        directory = tmpdir.mkdir('ckpt')
+        simple_population.split(2).checkpoint(target=directory, method=self.method)
+        pop = Population.load(directory, simple_evaluation_function)
+        assert pop.n_islands == 2
+
 
 class TestJsonCheckpoint(TestPickleCheckpoint):
 

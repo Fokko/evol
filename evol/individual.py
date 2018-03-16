@@ -17,16 +17,19 @@ class Individual:
     :param chromosome: The chromosome of the individual.
     :param fitness: The fitness of the individual, or None.
         Defaults to None.
+    :param island_id: The id of the island the individual belongs to.
+        Defaults to 0.
     """
 
-    def __init__(self, chromosome: Any, fitness: Optional[float]=None):
+    def __init__(self, chromosome: Any, fitness: Optional[float]=None, island_id=0):
         self.age = 0
         self.chromosome = chromosome
         self.fitness = fitness
         self.id = f"{str(uuid4())[:6]}"
+        self.island_id = island_id
 
     def __repr__(self):
-        return f"<individual id:{self.id} fitness:{self.fitness}>"
+        return f"<individual id:{self.id} fitness:{self.fitness} island:{self.island_id}>"
 
     @classmethod
     def from_dict(cls, data: dict) -> 'Individual':
@@ -35,7 +38,7 @@ class Individual:
         :param data: Dictionary containing the keys 'age', 'chromosome', 'fitness' and 'id'.
         :return: Individual
         """
-        result = cls(chromosome=data['chromosome'], fitness=data['fitness'])
+        result = cls(chromosome=data['chromosome'], fitness=data['fitness'], island_id=data.get('island_id', 0))
         result.age = data['age']
         result.id = data['id']
         return result
