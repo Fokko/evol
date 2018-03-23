@@ -81,12 +81,13 @@ def pick_random_parents(pop):
     dad = random.choice(pop)
     return mom, dad
 
-def make_child(mom, dad):
+def make_child(parents):
     """
     This function describes how two candidates combine into a new candidate
     Note that the output is a tuple, just like the output of `random_start`
     We leave it to the developer to ensure that chromosomes are of the same type
     """
+    mom, dad = parents
     child_x = (mom[0] + dad[0])/2
     child_y = (mom[1] + dad[1])/2
     return child_x, child_y
