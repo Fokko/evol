@@ -24,7 +24,7 @@ def run_evolutionary(opt_value=1, population_size=100, n_parents=2, num_iter=200
     def random_parent_picker(pop, n_parents):
         return [random.choice(pop) for i in range(n_parents)]
 
-    def mean_parents(*parents):
+    def mean_parents(parents):
         return sum(parents) / len(parents)
 
     def add_noise(chromosome, sigma):

@@ -57,7 +57,7 @@ def run_rock_paper_scissors(population_size=100, n_iterations=200, random_seed=4
     evo = (
         Evolution()
         .survive(fraction=survive_fraction)
-        .breed(parent_picker=pick_random, combiner=lambda x, y: x.combine(y), n_parents=2)
+        .breed(parent_picker=pick_random, combiner=lambda parents: parents[0].combine(parents[1]), n_parents=2)
         .mutate(lambda x: x.mutate())
         .evaluate()
     )

@@ -57,7 +57,8 @@ def run_evolutionary(num_towns=42, population_size=100, num_iter=200, seed=42):
         division = len(lst) / n_crossover
         return [lst[round(division * i):round(division * (i + 1))] for i in range(n_crossover)]
 
-    def crossover_ox(mom_order, dad_order, n_crossover):
+    def crossover_ox(parents, n_crossover):
+        mom_order, dad_order = parents
         idx_split = partition(range(len(mom_order)), n_crossover=n_crossover)
         dad_idx = sum([list(d) for i, d in enumerate(idx_split) if i % 2 == 0], [])
         path = [-1 for _ in range(len(mom_order))]

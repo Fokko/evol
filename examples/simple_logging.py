@@ -29,11 +29,12 @@ def pick_random_parents(pop):
     dad = random.choice(pop)
     return mom, dad
 
-def make_child(mom, dad):
+def make_child(parents):
     """
     This is how two parents are going to make a child. 
     Note that the output of a tuple, just like the output of `random_start`
     """
+    mom, dad = parents
     child_x = (mom[0] + dad[0])/2
     child_y = (mom[1] + dad[1])/2
     return child_x, child_y
