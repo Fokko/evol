@@ -30,10 +30,10 @@ def offspring_generator(parents: List[Individual],
             chromosomes = tuple(individual.chromosome for individual in parents)
         # Create children
         if getattr(combiner, 'multiple_offspring', False):
-            for child in combiner(*chromosomes, **kwargs):
+            for child in combiner(chromosomes, **kwargs):
                 yield Individual(chromosome=child)
         else:
-            yield Individual(chromosome=combiner(*chromosomes, **kwargs))
+            yield Individual(chromosome=combiner(chromosomes, **kwargs))
 
 
 def select_arguments(func: Callable) -> Callable:

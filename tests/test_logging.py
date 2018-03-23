@@ -53,7 +53,7 @@ class TestLoggerSimple:
         evo = (Evolution()
                .survive(fraction=0.5)
                .breed(parent_picker=pick_random,
-                      combiner=lambda mom, dad: (mom + dad)/2 + (random.random() - 0.5),
+                      combiner=lambda parents: sum(parents)/2 + (random.random() - 0.5),
                       n_parents=2)
                .log(foo='bar'))
         _ = pop.evolve(evolution=evo, n=2)
@@ -125,7 +125,7 @@ class TestLoggerSimple:
         evo = (Evolution()
                .survive(fraction=0.5)
                .breed(parent_picker=pick_random,
-                      combiner=lambda mom, dad: (mom + dad)/2 + (random.random() - 0.5),
+                      combiner=lambda parents: sum(parents)/2 + (random.random() - 0.5),
                       n_parents=2)
                .log(foo='bar'))
         _ = pop.evolve(evolution=evo, n=5)
@@ -149,7 +149,7 @@ class TestLoggerSimple:
         evo = (Evolution()
                .survive(fraction=0.5)
                .breed(parent_picker=pick_random,
-                      combiner=lambda mom, dad: (mom + dad) + 1,
+                      combiner=lambda parents: sum(parents) + 1,
                       n_parents=2)
                .log(foo="dino"))
         _ = pop1.evolve(evolution=evo, n=5)
@@ -174,7 +174,7 @@ class TestLoggerSimple:
         evo = (Evolution()
                .survive(fraction=0.5)
                .breed(parent_picker=pick_random,
-                      combiner=lambda mom, dad: (mom + dad) + 1,
+                      combiner=lambda parents: sum(parents) + 1,
                       n_parents=2)
                .log(every=2))
         _ = pop.evolve(evolution=evo, n=100)

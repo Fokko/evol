@@ -101,23 +101,23 @@ class TestPopulationBreed:
     def test_breed_amount_works(self, simple_chromosomes, simple_evaluation_function):
         pop1 = Population(chromosomes=simple_chromosomes, eval_function=simple_evaluation_function)
         pop1.survive(n=50).breed(parent_picker=lambda population: choices(population, k=2),
-                                 combiner=lambda mom, dad: (mom + dad) / 2)
+                                 combiner=lambda parents: sum(parents) / 2)
         assert len(pop1) == len(simple_chromosomes)
         pop2 = Population(chromosomes=simple_chromosomes, eval_function=simple_evaluation_function)
         pop2.survive(n=50).breed(parent_picker=lambda population: choices(population, k=2),
-                                 combiner=lambda mom, dad: (mom + dad) / 2, population_size=400)
+                                 combiner=lambda parents: sum(parents) / 2, population_size=400)
         assert len(pop2) == 400
         assert pop2.intended_size == 400
 
     def test_breed_works_with_kwargs(self, simple_chromosomes, simple_evaluation_function):
         pop1 = Population(chromosomes=simple_chromosomes, eval_function=simple_evaluation_function)
         pop1.survive(n=50).breed(parent_picker=pick_random,
-                                 combiner=lambda mom, dad: (mom + dad) / 2,
+                                 combiner=lambda parents: sum(parents) / 2,
                                  n_parents=2)
         assert len(pop1) == len(simple_chromosomes)
         pop2 = Population(chromosomes=simple_chromosomes, eval_function=simple_evaluation_function)
         pop2.survive(n=50).breed(parent_picker=pick_random,
-                                 combiner=lambda *parents: sum(parents)/len(parents),
+                                 combiner=lambda parents: sum(parents)/len(parents),
                                  population_size=400, n_parents=3)
         assert len(pop2) == 400
         assert pop2.intended_size == 400
