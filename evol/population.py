@@ -251,7 +251,7 @@ class Population:
 
     def breed(self,
               parent_picker: Callable[..., Sequence[Individual]],
-              combiner: Callable,
+              combiner: Callable[[Sequence], Any],
               population_size: Optional[int]=None,
               **kwargs) -> 'Population':
         """Create new individuals by combining existing individuals.
@@ -259,7 +259,7 @@ class Population:
         :param parent_picker: Function that selects parents from a collection of individuals.
         :param combiner: Function that combines chromosomes into a new
             chromosome. Must be able to handle the number of chromosomes
-            that the combiner returns.
+            that the parent_picker returns.
         :param population_size: Intended population size after breeding.
             If None, take the previous intended population size.
             Defaults to None.
